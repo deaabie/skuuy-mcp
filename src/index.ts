@@ -11,7 +11,9 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-  Tool
+  Tool,
+  McpError,
+  ErrorCode
 } from '@modelcontextprotocol/sdk/types.js';
 import * as crypto from 'crypto';
 
