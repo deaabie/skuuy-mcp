@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.deaabie/skuuy-mcp",
+  "title": "Skuuy MCP",
+  "description": "13 privacy-first network, auth & web tools for AI agents — no API key, 60 req/min free.",
+  "version": "1.0.0",
+  "websiteUrl": "https://skuuy.com",
+  "repository": {
+    "url": "https://github.com/deaabie/skuuy-mcp",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.skuuy.com/mcp"
+    }
+  ]
+}
