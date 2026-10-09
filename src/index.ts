@@ -502,7 +502,7 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
 
       // 5. Read Temp Inbox
       case 'skuuy_read_inbox': {
-        const inboxId = args.inbox_id;
+        const inboxId = (args.inbox_id || '').trim();
         const inbox = LOCAL_TEMP_INBOXES.get(inboxId);
         const limit = args.limit || 10;
         const offset = args.offset || 0;
@@ -511,35 +511,42 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
           // If in local memory
           return {
             inbox_id: inboxId,
+            email_address: inbox.email,
             messages: inbox.messages.slice(offset, offset + limit)
           };
         }
 
-        // Try reading upstream from mail.skuuy.com KV
-        try {
-          const res = await fetch(`https://mail.skuuy.com/api/inbox?email=${encodeURIComponent(inboxId)}`, { signal: controller.signal });
-          if (res.ok) {
-            const data: any = await res.json();
-            const msgs = (data.messages || []).map((m: any) => ({
-              message_id: m.id || 'msg_' + crypto.randomBytes(3).toString('hex'),
-              from: m.from || m.sender || 'unknown',
-              subject: m.subject || '',
-              received_at: m.receivedAt || new Date().toISOString(),
-              body_text: m.textBody || m.body || '',
-              extracted_otp: m.extractedOtp || undefined,
-              extracted_links: m.extractedLink ? [m.extractedLink] : []
-            }));
-            return {
-              inbox_id: inboxId,
-              messages: msgs.slice(offset, offset + limit)
-            };
-          }
-        } catch {}
+        // Try reading upstream from mail.skuuy.com KV if it's an email address or recognized prefix
+        if (inboxId.includes('@')) {
+          try {
+            const res = await fetch(`https://mail.skuuy.com/api/inbox?email=${encodeURIComponent(inboxId)}`, { signal: controller.signal });
+            if (res.ok) {
+              const data: any = await res.json();
+              if (data.success !== false) {
+                const msgs = (data.messages || []).map((m: any) => ({
+                  message_id: m.id || 'msg_' + crypto.randomBytes(3).toString('hex'),
+                  from: m.from || m.sender || 'unknown',
+                  subject: m.subject || '',
+                  received_at: m.receivedAt || new Date().toISOString(),
+                  body_text: m.textBody || m.body || '',
+                  extracted_otp: m.extractedOtp || undefined,
+                  extracted_links: m.extractedLink ? [m.extractedLink] : []
+                }));
+                return {
+                  inbox_id: inboxId,
+                  email_address: inboxId,
+                  messages: msgs.slice(offset, offset + limit)
+                };
+              }
+            }
+          } catch {}
+        }
 
-        return {
-          inbox_id: inboxId,
-          messages: []
-        };
+        // Reject with clear error if inbox not found
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Inbox "${inboxId}" not found or expired. Call skuuy_create_temp_inbox first to generate an active inbox.`
+        );
       }
 
       // 6. Resolve DNS
