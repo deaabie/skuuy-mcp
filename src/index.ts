@@ -706,6 +706,22 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       // 10. Create Webhook Bin
       case 'skuuy_create_webhook_bin': {
         const ttl = args.ttl_minutes || 60;
+        try {
+          const res = await fetch('https://bin.skuuy.com/api/bins', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ttl_minutes: ttl })
+          });
+          if (res.ok) {
+            const data: any = await res.json();
+            return {
+              bin_id: data.bin_id,
+              url: data.url,
+              expires_at: data.expires_at
+            };
+          }
+        } catch (e) {}
+
         const binId = 'w_' + crypto.randomBytes(3).toString('hex');
         const now = new Date();
         const expiresAt = new Date(now.getTime() + ttl * 60000).toISOString();
@@ -727,10 +743,21 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       // 11. Get Bin Requests
       case 'skuuy_get_bin_requests': {
         const binId = args.bin_id;
-        const bin = LOCAL_WEBHOOK_BINS.get(binId);
         const limit = args.limit || 20;
         const offset = args.offset || 0;
 
+        try {
+          const res = await fetch(`https://bin.skuuy.com/api/bins/${binId}/requests?limit=${limit}&offset=${offset}`);
+          if (res.ok) {
+            const data: any = await res.json();
+            return {
+              bin_id: binId,
+              requests: data.requests || []
+            };
+          }
+        } catch (e) {}
+
+        const bin = LOCAL_WEBHOOK_BINS.get(binId);
         return {
           bin_id: binId,
           requests: bin ? bin.requests.slice(offset, offset + limit) : []
