@@ -1026,7 +1026,7 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
           {
             name: 'Skuuy Security Headers & SSL Probe',
             mcp_tool: 'skuuy_check_security_headers',
-            http_endpoint: 'GET https://headers.skuuy.com/api/check',
+            http_endpoint: 'POST https://mcp.skuuy.com/mcp',
             category: 'web',
             description: 'Audits HSTS, CSP, X-Frame-Options, Permissions-Policy, redirect chains, and TLS certificates.'
           },
