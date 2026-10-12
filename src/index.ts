@@ -2,7 +2,7 @@
 
 /**
  * Skuuy Tools — Official Model Context Protocol (MCP) Server v1.0
- * Specification: Final v1.0 (13 Tools)
+ * Specification: Final v1.0 (15 Tools)
  * Zero-log, privacy-preserving, CORS-enabled network & developer primitives.
  */
 
@@ -56,7 +56,7 @@ const LOCAL_TEMP_INBOXES = new Map<string, TempInbox>();
 // Allowed Ports for Abuse Guard
 const ALLOWED_PORTS = [22, 80, 443, 3306, 5432, 6379, 51820];
 
-// The 13 Official Skuuy MCP Tools
+// The 15 Official Skuuy MCP Tools
 const TOOLS: Tool[] = [
   {
     name: 'skuuy_get_egress_ip',
@@ -387,6 +387,84 @@ const TOOLS: Tool[] = [
       },
       additionalProperties: false
     }
+  },
+  {
+    name: 'skuuy_drop_file',
+    description: "Uploads or mirrors an inline file (base64 string or remote fetch URL) into an ephemeral public download URL with automatic TTL expiration. Use this when transferring files, charts, CSVs, logs, or binaries between agents, subagents, or to users without blowing token limits on inline data. Free tier: 25 drops/day.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          description: 'Inline file content: base64-encoded binary string or plain UTF-8 text. Either content or url is REQUIRED.'
+        },
+        url: {
+          type: 'string',
+          format: 'uri',
+          description: 'Public URL of a remote file to fetch and mirror as an ephemeral drop. Either content or url is REQUIRED.'
+        },
+        filename: {
+          type: 'string',
+          description: 'Original or target filename, e.g. "report.csv" or "chart.png".'
+        },
+        mime_type: {
+          type: 'string',
+          description: 'MIME type of the file. If omitted, inferred from magic bytes or filename.'
+        },
+        ttl: {
+          type: 'string',
+          enum: ['15m', '1h', '6h', '24h', '3d', '7d'],
+          default: '24h',
+          description: 'Time-to-live before automatic deletion.'
+        },
+        burn_after_reading: {
+          type: 'boolean',
+          default: false,
+          description: 'If true, automatically deletes the file immediately after the first successful download.'
+        }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'skuuy_paste',
+    description: "Creates an ephemeral, cleanly-rendered shareable text or Markdown paste page with syntax highlighting and zero-script secure viewer. Use this when sharing code snippets, logs, prompt templates, or long markdown reports with users or other agents without formatting loss. Free tier: 25 pastes/day.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description: 'Text or Markdown content to paste. REQUIRED.'
+        },
+        title: {
+          type: 'string',
+          description: 'Optional title for the paste.'
+        },
+        format: {
+          type: 'string',
+          enum: ['markdown', 'text', 'code'],
+          default: 'markdown',
+          description: 'Rendering format.'
+        },
+        language: {
+          type: 'string',
+          description: 'Optional programming language for syntax highlighting if format is code, e.g. python, json, typescript.'
+        },
+        ttl: {
+          type: 'string',
+          enum: ['15m', '1h', '6h', '24h', '3d', '7d'],
+          default: '24h',
+          description: 'Time-to-live before automatic deletion.'
+        },
+        burn_after_reading: {
+          type: 'boolean',
+          default: false,
+          description: 'If true, automatically deletes the paste immediately after the first view.'
+        }
+      },
+      required: ['text'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -482,28 +560,39 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       // 4. Create Temp Inbox
       case 'skuuy_create_temp_inbox': {
         const ttl = args.ttl_minutes || 30;
-        const id = 'inb_' + crypto.randomBytes(4).toString('hex');
+        const rand = crypto.randomBytes(4).toString('hex');
+        const id = 'inb_' + rand;
         const prefix = args.prefix ? args.prefix.toLowerCase().replace(/[^a-z0-9._-]/g, '') : 'agent';
-        const email = `${prefix ? prefix + '-' : 'agent-'}${id.slice(4)}@gmeow.page`;
+        const email = `${prefix ? prefix + '-' : 'agent-'}${rand}@gmeow.page`;
         const now = new Date();
         const expiresAt = new Date(now.getTime() + ttl * 60000).toISOString();
 
-        LOCAL_TEMP_INBOXES.set(id, {
+        const record = {
           id,
           email,
           created_at: now.toISOString(),
           expires_at: expiresAt,
           messages: []
-        });
+        };
+        LOCAL_TEMP_INBOXES.set(id, record);
+        LOCAL_TEMP_INBOXES.set(rand, record);
 
         // Sync mapping to mail.skuuy.com edge KV store
         try {
-          await fetch('https://mail.skuuy.com/api/inbox', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ inbox_id: id, email, ttl_minutes: ttl }),
-            signal: controller.signal
-          });
+          await Promise.allSettled([
+            fetch('https://mail.skuuy.com/api/map', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ inbox_id: id, email, ttl_minutes: ttl }),
+              signal: controller.signal
+            }),
+            fetch('https://mail.skuuy.com/api/inbox', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ inbox_id: id, email, ttl_minutes: ttl }),
+              signal: controller.signal
+            })
+          ]);
         } catch {}
 
         return {
@@ -519,31 +608,72 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
         const limit = args.limit || 10;
         const offset = args.offset || 0;
 
-        // 1. Check local in-memory store
-        const inbox = LOCAL_TEMP_INBOXES.get(inboxId);
-        if (inbox && inbox.messages.length > 0) {
-          return {
-            inbox_id: inboxId,
-            email_address: inbox.email,
-            messages: inbox.messages.slice(offset, offset + limit)
-          };
-        }
-
-        // 2. Resolve target email from inboxId
-        let targetEmail = inbox ? inbox.email : '';
+        let targetEmail = '';
         if (inboxId.includes('@')) {
           targetEmail = inboxId;
-        } else if (!targetEmail && inboxId.startsWith('inb_')) {
-          try {
-            const mapRes = await fetch(`https://mail.skuuy.com/api/map?inbox_id=${encodeURIComponent(inboxId)}`, { signal: controller.signal });
-            if (mapRes.ok) {
-              const mapData: any = await mapRes.json();
-              if (mapData.email) targetEmail = mapData.email;
+        } else {
+          const candidateKeys = [inboxId];
+          if (!inboxId.startsWith('inb_')) {
+            candidateKeys.push('inb_' + inboxId);
+          } else {
+            candidateKeys.push(inboxId.replace(/^inb_/, ''));
+          }
+          if (inboxId.includes('-')) {
+            const parts = inboxId.split('-');
+            candidateKeys.push('inb_' + parts[parts.length - 1]);
+            candidateKeys.push(parts[parts.length - 1]);
+          }
+
+          // 1. Check local in-memory store
+          for (const key of candidateKeys) {
+            const mem = LOCAL_TEMP_INBOXES.get(key);
+            if (mem) {
+              targetEmail = mem.email;
+              if (mem.messages.length > 0) {
+                return {
+                  inbox_id: inboxId,
+                  email_address: mem.email,
+                  messages: mem.messages.slice(offset, offset + limit)
+                };
+              }
+              break;
             }
-          } catch {}
+          }
+
+          // 2. Upstream mail.skuuy.com map resolution
+          if (!targetEmail) {
+            for (const key of candidateKeys) {
+              try {
+                const mapRes = await fetch(`https://mail.skuuy.com/api/map?inbox_id=${encodeURIComponent(key)}`, { signal: controller.signal });
+                if (mapRes.ok) {
+                  const mapData: any = await mapRes.json();
+                  if (mapData.email) {
+                    targetEmail = mapData.email;
+                    break;
+                  }
+                }
+              } catch {}
+            }
+          }
+
+          // 3. Upstream mail.skuuy.com inbox probe
+          if (!targetEmail) {
+            for (const key of candidateKeys) {
+              try {
+                const probeRes = await fetch(`https://mail.skuuy.com/api/inbox?inbox_id=${encodeURIComponent(key)}`, { signal: controller.signal });
+                if (probeRes.ok) {
+                  const probeData: any = await probeRes.json();
+                  if (probeData.email || probeData.email_address) {
+                    targetEmail = probeData.email || probeData.email_address;
+                    break;
+                  }
+                }
+              } catch {}
+            }
+          }
         }
 
-        // 3. Reject if inbox ID was not found or has expired
+        // 4. Reject if inbox ID was not found or has expired
         if (!targetEmail || !targetEmail.includes('@')) {
           throw new McpError(
             ErrorCode.InvalidParams,
@@ -927,6 +1057,20 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
             http_endpoint: 'POST https://skuuy.com/api/hash',
             category: 'utility',
             description: 'One-shot hashing (SHA-256, SHA-512, MD5), Base64 encoding/decoding, UUID v4, and passwords.'
+          },
+          {
+            name: 'Skuuy Ephemeral File Drop',
+            mcp_tool: 'skuuy_drop_file',
+            http_endpoint: 'POST https://file.skuuy.com/drop',
+            category: 'utility',
+            description: 'Converts base64 files or remote URLs into ephemeral download links with configurable TTL and zero-log storage.'
+          },
+          {
+            name: 'Skuuy Shareable Paste & Markdown',
+            mcp_tool: 'skuuy_paste',
+            http_endpoint: 'POST https://file.skuuy.com/paste',
+            category: 'utility',
+            description: 'Creates ephemeral text, code, or Markdown pastes with zero-script security and instant shareable URLs.'
           }
         ];
 
@@ -943,6 +1087,80 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
         }
 
         return { results };
+      }
+
+      // 14. Ephemeral File Drop
+      case 'skuuy_drop_file': {
+        if (!args.content && !args.url) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Either "content" (base64 string or text) or "url" is required for skuuy_drop_file.'
+          );
+        }
+
+        const res = await fetch('https://file.skuuy.com/drop', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'skuuy-mcp/1.0.0'
+          },
+          body: JSON.stringify({
+            content: args.content,
+            url: args.url,
+            filename: args.filename,
+            mime_type: args.mime_type,
+            ttl: args.ttl || '24h',
+            burn_after_reading: Boolean(args.burn_after_reading)
+          }),
+          signal: controller.signal
+        });
+
+        const data: any = await res.json();
+        if (!res.ok) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            data.error || `File drop failed with status ${res.status}`
+          );
+        }
+
+        return data;
+      }
+
+      // 15. Ephemeral Paste
+      case 'skuuy_paste': {
+        if (!args.text) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Property "text" is required for skuuy_paste.'
+          );
+        }
+
+        const res = await fetch('https://file.skuuy.com/paste', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'skuuy-mcp/1.0.0'
+          },
+          body: JSON.stringify({
+            text: args.text,
+            title: args.title,
+            format: args.format || 'markdown',
+            language: args.language,
+            ttl: args.ttl || '24h',
+            burn_after_reading: Boolean(args.burn_after_reading)
+          }),
+          signal: controller.signal
+        });
+
+        const data: any = await res.json();
+        if (!res.ok) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            data.error || `Paste failed with status ${res.status}`
+          );
+        }
+
+        return data;
       }
 
       default:
