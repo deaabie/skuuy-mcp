@@ -1,7 +1,7 @@
 {
   "name": "skuuy-mcp",
-  "version": "1.0.0",
-  "description": "Model Context Protocol (MCP) server for the Skuuy Tools ecosystem (IP, 2FA TOTP, Temp Mail, Proxies, DNS, TCP Ports, Public APIs, URL-to-Markdown Reader)",
+  "version": "1.1.0",
+  "description": "Model Context Protocol (MCP) server for the Skuuy Tools ecosystem (IP, 2FA TOTP, Temp Mail, Proxies, DNS, TCP Ports, Public APIs, URL-to-Markdown Reader, Ephemeral File/Paste, RPC Relay)",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
@@ -22,7 +22,10 @@
     "proxy",
     "dns",
     "port-scanner",
-    "reader"
+    "reader",
+    "rpc",
+    "json-rpc",
+    "web3"
   ],
   "author": "Skuuy Tools",
   "license": "MIT",

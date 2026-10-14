@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Skuuy Tools — Official Model Context Protocol (MCP) Server v1.0
- * Specification: Final v1.0 (15 Tools)
+ * Skuuy Tools — Official Model Context Protocol (MCP) Server v1.1.0
+ * Specification: Final v1.1.0 (16 Tools)
  * Zero-log, privacy-preserving, CORS-enabled network & developer primitives.
  */
 
@@ -463,6 +463,30 @@ const TOOLS: Tool[] = [
         }
       },
       required: ['text'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'skuuy_rpc',
+    description: 'Sends a read-only JSON-RPC call through the Skuuy Private RPC Relay (rpc.skuuy.com) — zero-log, no API key, no signup. 12 EVM chains: eth, base, arb, op, bnb, polygon, avax, linea, bera, blast, scroll, zksync. Free tier: 2,500 calls/day/IP on the relay (quota is shared when called via the hosted MCP server). Write methods like eth_sendRawTransaction are rejected server-side.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        chain: {
+          type: 'string',
+          description: 'Chain path. One of: eth, base, arb, op, bnb, polygon, avax, linea, bera, blast, scroll, zksync. REQUIRED.'
+        },
+        method: {
+          type: 'string',
+          description: 'JSON-RPC method, e.g. eth_blockNumber, eth_chainId, eth_getBalance, eth_call, eth_getTransactionByHash. Read-only methods only. REQUIRED.'
+        },
+        params: {
+          type: 'array',
+          description: 'Method params as a JSON array, e.g. ["0xabc...","latest"] for eth_getBalance.',
+          default: []
+        }
+      },
+      required: ['chain', 'method'],
       additionalProperties: false
     }
   }
@@ -1071,6 +1095,13 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
             http_endpoint: 'POST https://file.skuuy.com/paste',
             category: 'utility',
             description: 'Creates ephemeral text, code, or Markdown pastes with zero-script security and instant shareable URLs.'
+          },
+          {
+            name: 'Skuuy Private RPC Relay',
+            mcp_tool: 'skuuy_rpc',
+            http_endpoint: 'POST https://rpc.skuuy.com/{chain}',
+            category: 'utility',
+            description: 'Private, zero-log JSON-RPC relay for 12 EVM chains with no API keys or signup.'
           }
         ];
 
@@ -1163,6 +1194,57 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
         return data;
       }
 
+      // 16. Private RPC Relay
+      case 'skuuy_rpc': {
+        const chain = String(args.chain || '').trim().toLowerCase();
+        if (!chain) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Property "chain" is required for skuuy_rpc.'
+          );
+        }
+        if (!args.method) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Property "method" is required for skuuy_rpc.'
+          );
+        }
+
+        const res = await fetch(`https://rpc.skuuy.com/${encodeURIComponent(chain)}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'skuuy-mcp/1.1.0'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: args.method,
+            params: Array.isArray(args.params) ? args.params : []
+          }),
+          signal: controller.signal
+        });
+
+        const data: any = await res.json().catch(() => ({}));
+        if (data && data.error) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            `RPC error ${data.error.code}: ${data.error.message}`
+          );
+        }
+        if (!res.ok) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            `RPC relay failed with status ${res.status}`
+          );
+        }
+
+        return {
+          chain,
+          result: data.result
+        };
+      }
+
       default:
         throw new Error(`Unknown Skuuy tool: "${name}"`);
     }
@@ -1175,7 +1257,7 @@ async function main() {
   const server = new Server(
     {
       name: 'skuuy-mcp',
-      version: '1.0.0',
+      version: '1.1.0',
     },
     {
       capabilities: {
@@ -1218,7 +1300,7 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Skuuy MCP Server v1.0 running on stdio');
+  console.error('Skuuy MCP Server v1.1.0 running on stdio');
 }
 
 main().catch((error) => {
