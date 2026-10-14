@@ -56,7 +56,7 @@ const LOCAL_TEMP_INBOXES = new Map<string, TempInbox>();
 // Allowed Ports for Abuse Guard
 const ALLOWED_PORTS = [22, 80, 443, 3306, 5432, 6379, 51820];
 
-// The 15 Official Skuuy MCP Tools
+// The 16 Official Skuuy MCP Tools (with Annotations)
 const TOOLS: Tool[] = [
   {
     name: 'skuuy_get_egress_ip',
@@ -65,7 +65,8 @@ const TOOLS: Tool[] = [
       type: 'object',
       properties: {},
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   },
   {
     name: 'skuuy_list_proxies',
@@ -112,7 +113,8 @@ const TOOLS: Tool[] = [
         }
       },
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   },
   {
     name: 'skuuy_generate_totp',
@@ -143,7 +145,8 @@ const TOOLS: Tool[] = [
       },
       required: ['secret'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: false }
   },
   {
     name: 'skuuy_create_temp_inbox',
@@ -164,7 +167,8 @@ const TOOLS: Tool[] = [
         }
       },
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: false, idempotentHint: false }
   },
   {
     name: 'skuuy_read_inbox',
@@ -190,7 +194,8 @@ const TOOLS: Tool[] = [
       },
       required: ['inbox_id'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   },
   {
     name: 'skuuy_resolve_dns',
@@ -224,7 +229,8 @@ const TOOLS: Tool[] = [
       },
       required: ['domain'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   },
   {
     name: 'skuuy_check_ports',
@@ -250,7 +256,8 @@ const TOOLS: Tool[] = [
       },
       required: ['host'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   },
   {
     name: 'skuuy_check_security_headers',
@@ -271,7 +278,8 @@ const TOOLS: Tool[] = [
       },
       required: ['url'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   },
   {
     name: 'skuuy_read_url',
@@ -298,7 +306,8 @@ const TOOLS: Tool[] = [
       },
       required: ['url'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   },
   {
     name: 'skuuy_create_webhook_bin',
@@ -315,11 +324,12 @@ const TOOLS: Tool[] = [
         }
       },
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: false, idempotentHint: false }
   },
   {
     name: 'skuuy_get_bin_requests',
-    description: 'Lists HTTP requests captured by a webhook bin created with skuuy_create_webhook_bin: method, headers, query params, and body (truncated at 1 MB). Poll this after triggering the callback you are debugging.',
+    description: 'Lists HTTP requests captured by a webhook bin created with skuuy_create_webhook_bin: method, headers, query params, and body (truncated at 1 MB). Poll this after triggering the callback you are debugging (allow ~3-5 seconds for edge KV propagation).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -341,7 +351,8 @@ const TOOLS: Tool[] = [
       },
       required: ['bin_id'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   },
   {
     name: 'skuuy_hash_encode',
@@ -368,7 +379,8 @@ const TOOLS: Tool[] = [
       },
       required: ['operation'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: false }
   },
   {
     name: 'skuuy_search_public_apis',
@@ -386,7 +398,8 @@ const TOOLS: Tool[] = [
         }
       },
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   },
   {
     name: 'skuuy_drop_file',
@@ -424,7 +437,8 @@ const TOOLS: Tool[] = [
         }
       },
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: false, idempotentHint: false }
   },
   {
     name: 'skuuy_paste',
@@ -464,7 +478,8 @@ const TOOLS: Tool[] = [
       },
       required: ['text'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: false, idempotentHint: false }
   },
   {
     name: 'skuuy_rpc',
@@ -488,7 +503,8 @@ const TOOLS: Tool[] = [
       },
       required: ['chain', 'method'],
       additionalProperties: false
-    }
+    },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   }
 ];
 
