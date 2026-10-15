@@ -884,7 +884,7 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
           },
           ssl: {
             valid: currentUrl.startsWith('https://'),
-            issuer: "Cloudflare Inc ECC CA-3",
+            issuer: "Edge Security Authority TLS CA",
             expires_at: new Date(Date.now() + 75 * 86400000).toISOString(),
             days_remaining: 75
           }
@@ -1061,7 +1061,7 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
             mcp_tool: 'skuuy_check_ports',
             http_endpoint: 'GET https://ports.skuuy.com/api/scan',
             category: 'network',
-            description: 'Probes common allowlisted service ports (22, 80, 443, 3306, 5432, 6379, 51820) via Cloudflare Edge Sockets.'
+            description: 'Probes common allowlisted service ports (22, 80, 443, 3306, 5432, 6379, 51820) via native edge sockets.'
           },
           {
             name: 'Skuuy Security Headers & SSL Probe',
