@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Skuuy Tools — Official Model Context Protocol (MCP) Server v1.1.0
+ * Skuuy Tools — Official Model Context Protocol (MCP) Server v1.2.0
  * Specification: Final v1.1.0 (16 Tools)
  * Zero-log, privacy-preserving, CORS-enabled network & developer primitives.
  */
@@ -52,6 +52,12 @@ interface TempInbox {
 
 const LOCAL_WEBHOOK_BINS = new Map<string, WebhookBin>();
 const LOCAL_TEMP_INBOXES = new Map<string, TempInbox>();
+
+interface SearchApisCacheEntry {
+  data: { results: any[] };
+  expiresAt: number;
+}
+const SEARCH_APIS_CACHE = new Map<string, SearchApisCacheEntry>();
 
 // Allowed Ports for Abuse Guard
 const ALLOWED_PORTS = [22, 80, 443, 3306, 5432, 6379, 51820];
@@ -384,22 +390,56 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'skuuy_search_public_apis',
-    description: 'Searches the Skuuy public API catalog. Call this FIRST when you are unsure which Skuuy tool fits your task — it returns matching tools with their MCP tool name, HTTP endpoint, and parameter summary.',
+    description: "Use this when you need a free public REST API for a task — weather data, crypto prices, geocoding, news, AI models, etc. Searches Skuuy's live directory of 41 health-checked public APIs (no API key required for most). Returns the API name, what it does, its category, auth requirement, docs link, and a testable sample endpoint you can call immediately. Results are verified alive by continuous edge health probes.",
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: "Keywords, e.g. 'email otp', 'proxy', 'dns'."
+          description: "Keywords, e.g. 'weather', 'crypto prices', 'geocoding', 'news'."
         },
         category: {
           type: 'string',
-          enum: ['network', 'privacy', 'auth', 'web', 'utility']
+          enum: [
+            'ai',
+            'development',
+            'weather',
+            'crypto',
+            'finance',
+            'geocoding',
+            'animals',
+            'anime',
+            'entertainment',
+            'food',
+            'news',
+            'science',
+            'social',
+            'sports',
+            'transportation'
+          ],
+          description: 'Filter by category domain.'
+        },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 20,
+          default: 10,
+          description: 'Max results to return.'
+        },
+        online_only: {
+          type: 'boolean',
+          default: true,
+          description: 'Only return APIs currently verified online (excludes degraded/offline).'
         }
       },
       additionalProperties: false
     },
-    annotations: { readOnlyHint: true, idempotentHint: true }
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+      destructiveHint: false,
+      openWorldHint: true
+    }
   },
   {
     name: 'skuuy_drop_file',
@@ -1008,132 +1048,79 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
         }
       }
 
-      // 13. Search Public APIs (Meta Discoverability Tool)
+      // 13. Search Public APIs (Live apis.skuuy.com Catalog)
       case 'skuuy_search_public_apis': {
-        const query = (args.query || '').toLowerCase().trim();
-        const category = args.category;
+        const query = typeof args.query === 'string' ? args.query.trim() : '';
+        const category = typeof args.category === 'string' ? args.category.trim() : '';
+        const limit = typeof args.limit === 'number' ? Math.max(1, Math.min(20, Math.floor(args.limit))) : 10;
+        const onlineOnly = args.online_only !== false; // default true
 
-        const catalog = [
-          {
-            name: 'Skuuy IP & Leak Intelligence',
-            mcp_tool: 'skuuy_get_egress_ip',
-            http_endpoint: 'GET https://ip.skuuy.com/api/myip',
-            category: 'network',
-            description: 'Egress IP, geolocation, ASN, ISP, datacenter & VPN detection.'
-          },
-          {
-            name: 'Skuuy Free Proxy & SOCKS Hub',
-            mcp_tool: 'skuuy_list_proxies',
-            http_endpoint: 'GET https://proxy.skuuy.com/api/proxies',
-            category: 'network',
-            description: '50,000+ public proxies with protocol, latency, country & anonymity filtering.'
-          },
-          {
-            name: 'Skuuy 2FA Authenticator Suite',
-            mcp_tool: 'skuuy_generate_totp',
-            http_endpoint: 'GET https://2fa.skuuy.com/api/totp',
-            category: 'auth',
-            description: 'RFC 6238 TOTP generator from Base32 secret with zero storage & clock drift sync.'
-          },
-          {
-            name: 'Skuuy Temp Mail & OTP Suite',
-            mcp_tool: 'skuuy_create_temp_inbox',
-            http_endpoint: 'GET https://mail.skuuy.com/api/generate',
-            category: 'privacy',
-            description: 'Disposable email address creation with 30-minute self-destruct TTL.'
-          },
-          {
-            name: 'Skuuy Temp Mail Message & OTP Reader',
-            mcp_tool: 'skuuy_read_inbox',
-            http_endpoint: 'GET https://mail.skuuy.com/api/inbox',
-            category: 'privacy',
-            description: 'Reads disposable inbox messages and auto-extracts 4-8 digit OTP tokens & reset links.'
-          },
-          {
-            name: 'Skuuy DNS Propagation Matrix & DoH',
-            mcp_tool: 'skuuy_resolve_dns',
-            http_endpoint: 'GET https://dns.skuuy.com/api/resolve',
-            category: 'network',
-            description: 'Global DNS record resolution & propagation matrix across Anycast edge resolvers.'
-          },
-          {
-            name: 'Skuuy Edge Port & Firewall Auditor',
-            mcp_tool: 'skuuy_check_ports',
-            http_endpoint: 'GET https://ports.skuuy.com/api/scan',
-            category: 'network',
-            description: 'Probes common allowlisted service ports (22, 80, 443, 3306, 5432, 6379, 51820) via native edge sockets.'
-          },
-          {
-            name: 'Skuuy Security Headers & SSL Probe',
-            mcp_tool: 'skuuy_check_security_headers',
-            http_endpoint: 'POST https://mcp.skuuy.com/mcp',
-            category: 'web',
-            description: 'Audits HSTS, CSP, X-Frame-Options, Permissions-Policy, redirect chains, and TLS certificates.'
-          },
-          {
-            name: 'Skuuy Read — URL to Markdown',
-            mcp_tool: 'skuuy_read_url',
-            http_endpoint: 'GET https://read.skuuy.com/api/read',
-            category: 'web',
-            description: 'Converts public web URLs into clean, token-efficient GFM Markdown for LLMs.'
-          },
-          {
-            name: 'Skuuy Webhook Bin Creator',
-            mcp_tool: 'skuuy_create_webhook_bin',
-            http_endpoint: 'POST https://bin.skuuy.com/api/bins',
-            category: 'utility',
-            description: 'Creates ephemeral request bin URLs to capture and inspect webhooks with 60-min TTL.'
-          },
-          {
-            name: 'Skuuy Webhook Bin Request Inspector',
-            mcp_tool: 'skuuy_get_bin_requests',
-            http_endpoint: 'GET https://bin.skuuy.com/api/bins/{id}/requests',
-            category: 'utility',
-            description: 'Retrieves captured HTTP requests, headers, and payloads from an ephemeral webhook bin.'
-          },
-          {
-            name: 'Skuuy Cryptographic Hash & Encode',
-            mcp_tool: 'skuuy_hash_encode',
-            http_endpoint: 'POST https://skuuy.com/api/hash',
-            category: 'utility',
-            description: 'One-shot hashing (SHA-256, SHA-512, MD5), Base64 encoding/decoding, UUID v4, and passwords.'
-          },
-          {
-            name: 'Skuuy Ephemeral File Drop',
-            mcp_tool: 'skuuy_drop_file',
-            http_endpoint: 'POST https://file.skuuy.com/drop',
-            category: 'utility',
-            description: 'Converts base64 files or remote URLs into ephemeral download links with configurable TTL and zero-log storage.'
-          },
-          {
-            name: 'Skuuy Shareable Paste & Markdown',
-            mcp_tool: 'skuuy_paste',
-            http_endpoint: 'POST https://file.skuuy.com/paste',
-            category: 'utility',
-            description: 'Creates ephemeral text, code, or Markdown pastes with zero-script security and instant shareable URLs.'
-          },
-          {
-            name: 'Skuuy Private RPC Relay',
-            mcp_tool: 'skuuy_rpc',
-            http_endpoint: 'POST https://rpc.skuuy.com/{chain}',
-            category: 'utility',
-            description: 'Private, zero-log JSON-RPC relay for 12 EVM chains with no API keys or signup.'
+        const cacheKey = `${query}|${category}|${limit}|${onlineOnly}`;
+        const now = Date.now();
+        const cached = SEARCH_APIS_CACHE.get(cacheKey);
+        if (cached && now < cached.expiresAt) {
+          return cached.data;
+        }
+
+        const params = new URLSearchParams();
+        if (query) params.set('q', query);
+        if (category) params.set('category', category);
+        if (onlineOnly) params.set('status', 'online');
+        params.set('limit', String(limit));
+
+        const targetUrl = `https://apis.skuuy.com/api/v1/apis?${params.toString()}`;
+
+        const abortCtrl = new AbortController();
+        const timeoutId = setTimeout(() => abortCtrl.abort(), 10000);
+
+        try {
+          const res = await fetch(targetUrl, {
+            method: 'GET',
+            headers: {
+              'User-Agent': 'skuuy-mcp/1.2.0',
+              'Accept': 'application/json'
+            },
+            signal: abortCtrl.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!res.ok) {
+            throw new Error(`Catalog API responded with HTTP ${res.status}`);
           }
-        ];
 
-        let results = catalog;
-        if (category) {
-          results = results.filter(item => item.category === category);
-        }
-        if (query) {
-          results = results.filter(item =>
-            item.name.toLowerCase().includes(query) ||
-            item.description.toLowerCase().includes(query) ||
-            item.mcp_tool.toLowerCase().includes(query)
-          );
-        }
+          const json = (await res.json()) as any;
+          const items: any[] = Array.isArray(json?.data) ? json.data : [];
 
-        return { results };
+          const results = items.map((item: any) => ({
+            name: item.name || '',
+            description: item.description || '',
+            category: item.category || '',
+            auth: item.auth || 'No Auth',
+            link: item.link || '',
+            sample_endpoint: item.sampleEndpoint || item.sample_endpoint || '',
+            status: item.status || 'unknown',
+            latency_ms: item.latencyMs ?? item.latency_ms ?? 0
+          }));
+
+          const responsePayload = { results };
+
+          SEARCH_APIS_CACHE.set(cacheKey, {
+            data: responsePayload,
+            expiresAt: now + 60000
+          });
+
+          return responsePayload;
+        } catch (err: any) {
+          clearTimeout(timeoutId);
+          const isTimeout = err.name === 'AbortError' || err.message?.includes('aborted');
+          const errorMsg = isTimeout
+            ? 'Public API catalog request timed out after 10s, try again shortly.'
+            : 'Public API catalog temporarily unavailable, try again shortly.';
+          const customErr: any = new Error(errorMsg);
+          customErr.code = -32001;
+          throw customErr;
+        }
       }
 
       // 14. Ephemeral File Drop
@@ -1273,7 +1260,7 @@ async function main() {
   const server = new Server(
     {
       name: 'skuuy-mcp',
-      version: '1.1.0',
+      version: '1.2.0',
     },
     {
       capabilities: {
@@ -1316,7 +1303,7 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Skuuy MCP Server v1.1.0 running on stdio');
+  console.error('Skuuy MCP Server v1.2.0 running on stdio');
 }
 
 main().catch((error) => {
