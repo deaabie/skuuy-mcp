@@ -7,8 +7,8 @@
 
 All tools are **100% free**, require **no API keys**, and operate under a strict **zero-log policy**:
 
-1. **`skuuy_get_egress_ip`**: Returns the caller's public egress IP address with geolocation, ASN/ISP, and datacenter/proxy detection. Use to verify which IP and country your traffic exits from, or to confirm a VPN/proxy is active.
-2. **`skuuy_list_proxies`**: Lists tested-live public proxies (HTTP/HTTPS/SOCKS4/SOCKS5) across 150+ countries, refreshed every 30 minutes. Filter by protocol, country, anonymity tier (L1 Elite, L2 Anonymous, L3 Transparent), and max latency. Free public proxies are inherently unreliable — always implement retry/fallback.
+1. **`skuuy_get_egress_ip`**: Returns the caller's public egress IP address (or caller's connecting IP in hosted mode) with geolocation, ASN/ISP, and datacenter/proxy detection. Use to verify which IP and country your traffic exits from, or to confirm a VPN/proxy is active.
+2. **`skuuy_list_proxies`**: Lists tested-live public proxies (HTTP/HTTPS/SOCKS4/SOCKS5) across 150+ countries, periodically health-checked for latency and anonymity. Filter by protocol, country, anonymity tier (L1 Elite, L2 Anonymous, L3 Transparent), and max latency. Free public proxies are inherently unreliable — always implement retry/fallback.
 3. **`skuuy_generate_totp`**: Generates a time-based one-time password (RFC 6238 TOTP) from a base32 secret. Privacy: the secret is processed ephemerally in memory, never logged or stored. Compatible with Google Authenticator / Authy / Microsoft Authenticator secrets.
 4. **`skuuy_create_temp_inbox`**: Creates a disposable email inbox for sign-ups and verifications. Inbox self-destructs after TTL (default 30 minutes).
 5. **`skuuy_read_inbox`**: Reads messages in a temp inbox created by `skuuy_create_temp_inbox`. Each message includes plain-text body and auto-extracted 4–8 digit OTP codes and action links (e.g. password-reset URLs) when detected.

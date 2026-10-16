@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Skuuy Tools — Official Model Context Protocol (MCP) Server v1.2.0
+ * Skuuy Tools — Official Model Context Protocol (MCP) Server v1.2.1
  * Specification: Final v1.1.0 (16 Tools)
  * Zero-log, privacy-preserving, CORS-enabled network & developer primitives.
  */
@@ -66,7 +66,7 @@ const ALLOWED_PORTS = [22, 80, 443, 3306, 5432, 6379, 51820];
 const TOOLS: Tool[] = [
   {
     name: 'skuuy_get_egress_ip',
-    description: "Returns the caller's public egress IP address with geolocation, ASN/ISP, and datacenter/proxy detection. Use to verify which IP and country your traffic exits from, or to confirm a VPN/proxy is active. No parameters needed.",
+    description: "Returns the caller's public egress IP address (or caller's connecting IP in hosted mode) with geolocation, ASN/ISP, and datacenter/proxy detection. Use to verify which IP and country your traffic exits from, or to confirm a VPN/proxy is active. No parameters needed.",
     inputSchema: {
       type: 'object',
       properties: {},
@@ -76,7 +76,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'skuuy_list_proxies',
-    description: "Lists tested-live public proxies (HTTP/HTTPS/SOCKS4/SOCKS5) across 150+ countries, refreshed every 30 minutes. Filter by protocol, country, anonymity tier (L1 Elite = no forwarding headers, L2 Anonymous, L3 Transparent), and max latency. Each entry includes last_checked so you can judge freshness. Free public proxies are inherently unreliable — always implement retry/fallback.",
+    description: "Lists tested-live public proxies (HTTP/HTTPS/SOCKS4/SOCKS5) across 150+ countries, periodically health-checked for latency and anonymity. Filter by protocol, country, anonymity tier (L1 Elite = no forwarding headers, L2 Anonymous, L3 Transparent), and max latency. Each entry includes last_checked so you can judge freshness. Free public proxies are inherently unreliable — always implement retry/fallback.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -558,7 +558,10 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
     switch (name) {
       // 1. Egress IP
       case 'skuuy_get_egress_ip': {
-        const res = await fetch('https://ip.skuuy.com/api/myip', { signal: controller.signal });
+        const res = await fetch('https://ip.skuuy.com/api/myip?format=json', {
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
+        });
         const data: any = await res.json();
         return {
           ip: data.ip || '127.0.0.1',
@@ -1077,7 +1080,7 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
           const res = await fetch(targetUrl, {
             method: 'GET',
             headers: {
-              'User-Agent': 'skuuy-mcp/1.2.0',
+              'User-Agent': 'skuuy-mcp/1.2.1',
               'Accept': 'application/json'
             },
             signal: abortCtrl.signal
@@ -1260,7 +1263,7 @@ async function main() {
   const server = new Server(
     {
       name: 'skuuy-mcp',
-      version: '1.2.0',
+      version: '1.2.1',
     },
     {
       capabilities: {
@@ -1303,7 +1306,7 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Skuuy MCP Server v1.2.0 running on stdio');
+  console.error('Skuuy MCP Server v1.2.1 running on stdio');
 }
 
 main().catch((error) => {

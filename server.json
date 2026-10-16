@@ -3,7 +3,7 @@
   "name": "io.github.deaabie/skuuy-mcp",
   "title": "Skuuy MCP",
   "description": "16 privacy-first network, auth & web tools for AI agents — no API key, 60 req/min free.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "websiteUrl": "https://skuuy.com",
   "repository": {
     "url": "https://github.com/deaabie/skuuy-mcp",
