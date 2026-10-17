@@ -24,7 +24,7 @@ All tools are **100% free**, require **no API keys**, and operate under a strict
 15. **`skuuy_paste`**: Share a text/markdown snippet as a short-lived public page. Same zero-log TTL model as file drops. Free tier: 25 pastes/day.
 16. **`skuuy_rpc`**: Sends a read-only JSON-RPC call via the Skuuy Private RPC Relay (`rpc.skuuy.com/<chain>`): 12 EVM chains, zero-log, no API key. Free tier: 2,500 calls/day/IP on the relay.
 
-> **Note on paid REST endpoints:** `skuuy_drop_file`, `skuuy_paste`, `skuuy_rpc`, and the REST `read_url` are free up to a daily quota on their REST endpoints (`file.skuuy.com`, `rpc.skuuy.com`, `read.skuuy.com`), then paid per request via x402 on Base ($0.001/call for RPC relay, $0.005 for file/read). The MCP tools themselves are always free and rate-limited — MCP clients aren't x402-aware, so the tools never paywall.
+> **Note on paid REST endpoints:** `skuuy_drop_file`, `skuuy_paste`, `skuuy_rpc`, and the REST `read_url` are free up to a daily quota on their REST endpoints (`file.skuuy.com`, `rpc.skuuy.com`, `read.skuuy.com`), then paid per request via x402 on Base ($0.001/call for RPC relay, $0.001 for file/read). The MCP tools themselves are always free and rate-limited — MCP clients aren't x402-aware, so the tools never paywall.
 
 ---
 
